@@ -19,20 +19,26 @@ class BharatBankRAGPipeline:
             raise ValueError("GEMINI_API_KEY not found in environment variables or .env file.")
         
         genai.configure(api_key=api_key)
-        # Using gemini-3.8-flash as configured for your environment
         self.model_name = "gemini-3.8-flash"
         self.model = genai.GenerativeModel(self.model_name)
 
     def generate_answer(self, user_query: str, top_k: int = 4) -> dict:
         """Retrieves relevant RBI chunks and generates an authoritative answer or simple explanation with clean citations."""
+        
+        # Check if the query is a short follow-up button command
+        is_followup = user_query.strip() in [
+            "Explain this in simple terms", 
+            "Give me a practical example", 
+            "What are the exceptions?",
+            "I still didn't get it"
+        ]
+
         print(f"\nSearching documents for query: '{user_query}'...")
         retrieved_chunks = self.retriever.hybrid_search(user_query, top_k=top_k)
 
         if not retrieved_chunks:
-            return {
-                "answer": "No relevant RBI guidelines or documents found in the database.",
-                "sources": []
-            }
+            # Fallback search if a short phrase doesn't match specific doc keywords
+            retrieved_chunks = self.retriever.hybrid_search("RBI Master Directions KYC loans compliance", top_k=top_k)
 
         # Build context block with clean, user-friendly citations
         context_blocks = []
@@ -54,19 +60,12 @@ class BharatBankRAGPipeline:
 
         combined_context = "\n-----------------------------------\n".join(context_blocks)
 
-        # Detect if the user is asking for simplification or didn't understand the previous output
-        query_lower = user_query.lower()
-        is_simplification_request = any(phrase in query_lower for phrase in [
-            "didn't get", "didnt get", "simple words", "explain simply", 
-            "simplify", "easy", "what does this mean", "explain like"
-        ])
-
-        if is_simplification_request:
+        # Adapt prompt based on whether it's a follow-up simplification request or standard query
+        if is_followup or "simple" in user_query.lower() or "example" in user_query.lower():
             behavioral_instruction = (
-                "CRITICAL INSTRUCTION: The user stated they didn't understand or asked for simple words. "
-                "Do NOT give a dense formal breakdown. Instead, explain the retrieved RBI regulations like you are "
-                "teaching a beginner in plain, conversational English. Use easy analogies, clear bullet points, "
-                "and avoid heavy banking jargon while still referencing the sources."
+                "CRITICAL INSTRUCTION: The user clicked a follow-up action or requested a simple explanation/example. "
+                "Do NOT dump raw legal text. Break down the provided RBI regulations into simple, easy-to-understand "
+                "plain English, using clear analogies, bullet points, or practical examples based on the context below."
             )
         else:
             behavioral_instruction = (
@@ -84,7 +83,7 @@ CONTEXT DOCUMENTS:
 {combined_context}
 ---
 
-USER QUESTION: {user_query}
+USER INPUT: {user_query}
 
 ANSWER:
 """
@@ -115,6 +114,5 @@ ANSWER:
 
 if __name__ == "__main__":
     rag = BharatBankRAGPipeline()
-    query = "What are the latest RBI guidelines and public comments regarding KYC and Money Mules?"
-    result = rag.generate_answer(query)
+    result = rag.generate_answer("What are the latest RBI guidelines regarding KYC?")
     print(result["answer"])
