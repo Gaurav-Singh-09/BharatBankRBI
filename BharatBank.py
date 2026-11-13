@@ -26,15 +26,15 @@ st.set_page_config(
 )
 
 # ──────────────────────────────────────────────────────────────
-# Theme: indigo + saffron, with dark and light palettes
+# Theme: indigo + saffron, with dark and fixed high-contrast light palettes
 # ──────────────────────────────────────────────────────────────
 THEMES = {
     "dark": dict(bg="#0A0E1F", bg2="#0F1530", panel="#131A38", panel2="#1A2247", line="#262F5C",
                  text="#EEF0FF", muted="#8E98C9", ac="#8B9BFF", ac2="#FFB454", ok="#5EEAD4",
                  glow="rgba(139,155,255,0.16)", on="#0A0E1F", btn_on="#1b1100"),
-    "light": dict(bg="#F6F5FF", bg2="#ECEBFF", panel="#FFFFFF", panel2="#F0F0FF", line="#DAD9F5",
-                  text="#171A3A", muted="#5F668F", ac="#4C5CE0", ac2="#C46A0A", ok="#0F8F7E",
-                  glow="rgba(76,92,224,0.12)", on="#FFFFFF", btn_on="#FFFFFF"),
+    "light": dict(bg="#F0F2FA", bg2="#E2E6F3", panel="#FFFFFF", panel2="#E9ECEF", line="#CBD2E1",
+                  text="#0B0F29", muted="#4A537A", ac="#3B4CE2", ac2="#B85D00", ok="#0B6E61",
+                  glow="rgba(59,76,226,0.10)", on="#FFFFFF", btn_on="#FFFFFF"),
 }
 
 BASE_CSS = """
@@ -159,8 +159,7 @@ def list_local_pdfs(save_dir: str = DOCS_DIR):
     return sorted(f for f in os.listdir(save_dir) if f.lower().endswith(".pdf"))
 
 def sync_rbi_pdfs(target_url: str, save_dir: str = DOCS_DIR, limit: int = 10) -> int:
-    """Download up to `limit` PDFs linked from the RBI page. Returns how many were saved.
-    Old PDFs are only replaced if at least one new file downloaded, so a failed sync never empties the folder."""
+    """Download up to `limit` PDFs linked from the RBI page. Returns how many were saved."""
     os.makedirs(save_dir, exist_ok=True)
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
@@ -204,7 +203,7 @@ def sync_rbi_pdfs(target_url: str, save_dir: str = DOCS_DIR, limit: int = 10) ->
 
 if "pdfs_synced" not in st.session_state:
     with st.spinner("🔄 Syncing latest RBI circulars…"):
-        st.session_state["sync_count"] = sync_rbi_pdfs(SYNC_URL)
+        st.session_state["sync_count"] = sync_rbi_pdfs(SYNC_URL, limit=10)
         st.session_state["synced_at"] = datetime.now()
         st.session_state["pdfs_synced"] = True
     if st.session_state["sync_count"]:
@@ -472,7 +471,6 @@ if pending:
     prompt = pending["text"]
     stamp = f"{datetime.now():%d %b, %H:%M}"
 
-    # History is taken BEFORE the new question is added, so the prompt is not duplicated.
     if pending["regen"]:
         history = st.session_state.messages[:-1][-4:]
     else:
