@@ -16,3 +16,4 @@ python-dotenv
 pydantic
 pydantic-settings
 beautifulsoup4
+google-generativeai
