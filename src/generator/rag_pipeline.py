@@ -19,12 +19,12 @@ class BharatBankRAGPipeline:
             raise ValueError("GEMINI_API_KEY not found in environment variables or .env file.")
         
         genai.configure(api_key=api_key)
-        # Using gemini-3.8-flash as required by your environment
+        # Using gemini-3.8-flash as configured for your environment
         self.model_name = "gemini-3.8-flash"
         self.model = genai.GenerativeModel(self.model_name)
 
     def generate_answer(self, user_query: str, top_k: int = 4) -> dict:
-        """Retrieves relevant RBI chunks and generates an authoritative answer with clean citations."""
+        """Retrieves relevant RBI chunks and generates an authoritative answer or simple explanation with clean citations."""
         print(f"\nSearching documents for query: '{user_query}'...")
         retrieved_chunks = self.retriever.hybrid_search(user_query, top_k=top_k)
 
@@ -54,11 +54,30 @@ class BharatBankRAGPipeline:
 
         combined_context = "\n-----------------------------------\n".join(context_blocks)
 
+        # Detect if the user is asking for simplification or didn't understand the previous output
+        query_lower = user_query.lower()
+        is_simplification_request = any(phrase in query_lower for phrase in [
+            "didn't get", "didnt get", "simple words", "explain simply", 
+            "simplify", "easy", "what does this mean", "explain like"
+        ])
+
+        if is_simplification_request:
+            behavioral_instruction = (
+                "CRITICAL INSTRUCTION: The user stated they didn't understand or asked for simple words. "
+                "Do NOT give a dense formal breakdown. Instead, explain the retrieved RBI regulations like you are "
+                "teaching a beginner in plain, conversational English. Use easy analogies, clear bullet points, "
+                "and avoid heavy banking jargon while still referencing the sources."
+            )
+        else:
+            behavioral_instruction = (
+                "Your task is to provide a **comprehensive, highly detailed, and professionally formatted answer** to the user's question, drawing *only* from the provided RBI context documents below.\n"
+                "- Avoid short summaries. Break down the regulations, rules, and provisions thoroughly using markdown section headers, bold text, and bullet points.\n"
+                "- Cite sources explicitly using their clean labels in square brackets (e.g., [Source 1: File Name, Page X])."
+            )
+
         prompt = f"""You are 'BharatBank RAG', an expert AI regulatory compliance officer specializing in Reserve Bank of India (RBI) circulars, master directions, and banking policies.
 
-Your task is to provide a **comprehensive, highly detailed, and professionally formatted answer** to the user's question, drawing *only* from the provided RBI context documents below. 
-- Avoid short summaries. Break down the regulations, rules, and provisions thoroughly using markdown section headers, bold text, and bullet points.
-- Cite sources explicitly using their clean labels in square brackets (e.g., [Source 1: File Name, Page X]).
+{behavioral_instruction}
 
 ---
 CONTEXT DOCUMENTS:
@@ -67,10 +86,10 @@ CONTEXT DOCUMENTS:
 
 USER QUESTION: {user_query}
 
-PROFESSIONAL REGULATORY ANSWER:
+ANSWER:
 """
 
-        print(f"Generating detailed answer using Gemini ({self.model_name})...")
+        print(f"Generating answer using Gemini ({self.model_name})...")
         
         response_text = None
         try:
