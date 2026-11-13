@@ -414,7 +414,6 @@ for idx, m in enumerate(st.session_state.messages):
             if m.get("sources"):
                 with st.expander(f"📚 Official RBI Citations & Documents ({len(m['sources'])})"):
                     for s in m["sources"]:
-                        # Clean up raw hash strings if present, formatting cleanly
                         clean_src = s.split("File:")[-1].strip(")") if "File:" in s else s
                         st.markdown(f"- 📄 **{clean_src}** · [View RBI Portals](https://www.rbi.org.in/Scripts/BS_ViewMasterDirections.aspx)")
             
@@ -431,7 +430,7 @@ for idx, m in enumerate(st.session_state.messages):
                     st.button("↻  Regenerate", key=f"regen_{idx}", on_click=regenerate)
 
 # ──────────────────────────────────────────────────────────────
-# Chat Input & Execution Logic
+# Chat Input & Execution Logic (Updated with conversation history awareness)
 # ──────────────────────────────────────────────────────────────
 typed = st.chat_input("Ask about RBI guidelines, KYC rules, loan rates, NPAs, digital payments…")
 if typed:
@@ -452,7 +451,15 @@ if pending:
         try:
             start = time.time()
             with st.spinner(f"Searching top {top_k} RBI documents and synthesizing regulatory answer..."):
-                raw = rag_engine.generate_answer(prompt + STYLES[style], top_k=top_k)
+                
+                # Build conversation context history so follow-ups ("I didn't get it") work properly
+                recent_history = st.session_state.messages[-4:] if len(st.session_state.messages) > 1 else []
+                history_text = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in recent_history])
+                
+                full_query_payload = f"Recent Conversation History:\n{history_text}\n\nCurrent User Request: {prompt}{STYLES[style]}"
+                
+                raw = rag_engine.generate_answer(full_query_payload, top_k=top_k)
+                
             elapsed = time.time() - start
             answer, sources = normalize(raw)
             
