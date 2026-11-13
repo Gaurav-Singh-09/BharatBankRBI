@@ -1,0 +1,17 @@
+torch
+torchvision
+sentence-transformers
+transformers
+accelerate
+qdrant-client
+rank-bm25
+pymupdf
+pandas
+numpy
+streamlit
+fastapi
+uvicorn
+google-genai
+python-dotenv
+pydantic
+pydantic-settings
